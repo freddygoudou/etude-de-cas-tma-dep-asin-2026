@@ -116,7 +116,46 @@ jointure et des index (créés par `sql/reparation.sql`).
 DOUANES et IMPOTS ont leur épreuve le même jour (12/12/2026). La règle interdit de s'inscrire aux deux. Rien
 à corriger.
 
-## Non signalé : injection SQL
+## Bonus - incident non signalé : injection SQL sur la recherche par nom
 
-Le 20/11 vers 04:13, l'IP externe 102.64.217.33 a exploité une injection SQL sur la recherche par nom et
-récupéré 18 535 lignes de `candidats`. Détails dans `BONUS_SECURITE.md`.
+### Ce que montre le journal
+
+Le 20/11/2026 (heure du Bénin), depuis l'IP 102.64.217.33, sur `GET /api/inscrits/recherche?nom=` :
+
+- 04:12:40 `KPADONOU` : 200, 390 lignes (essai normal)
+- 04:13:05 `'` : 500, avec le message d'erreur SQL renvoyé tel quel (`unterminated quoted string at or near
+  "'%' LIMIT 50"`)
+- 04:13:27 `' OR '1'='1` : 200, 50 lignes
+- 04:13:50 `' UNION SELECT npi, nom, date_naissance FROM candidats --` : 200, 18 535 lignes
+- 04:14:16 même requête une deuxième fois : 200, 18 535 lignes
+
+C'est une IP externe, alors que la recherche n'est utilisée normalement que depuis 10.20.1.15 (réseau
+interne). Cinq requêtes en une minute et demie, en pleine nuit, dans l'ordre classique d'une injection.
+
+Cause : la requête est construite en concaténant le paramètre (`... LIKE '%<nom>%' LIMIT 50`). En plus, la
+route n'est pas protégée, l'erreur SQL est renvoyée au client, et le `--` neutralise le LIMIT.
+
+### Ce qui a pu être exposé
+
+- Avec certitude : NPI, nom et date de naissance de 18 535 personnes, soit toute la table `candidats` à ce
+  moment-là, y compris les candidats des campagnes précédentes. Or NPI + date de naissance suffisent pour
+  s'inscrire ou consulter une convocation à la place de quelqu'un.
+- Possiblement : tout ce que le compte base de l'application peut lire (inscriptions, numéros de table,
+  tables système...). Le journal ne garde que l'URL et le nombre de lignes : on ne peut pas exclure d'autres
+  accès.
+- Ce sont des données personnelles : la violation doit être notifiée à l'APDP.
+
+### Mesures immédiates
+
+1. Couper la route de recherche ou la limiter au réseau interne, et bloquer 102.64.217.33.
+2. Corriger : requête paramétrée, LIMIT forcé côté serveur, authentification sur la recherche, message
+   d'erreur générique, droits réduits pour le compte base de l'application.
+3. Garder les preuves : copier les journaux applicatifs, du proxy et de PostgreSQL depuis le 18/11, avant
+   rotation.
+4. Mesurer l'étendue : chercher `'`, `UNION`, `--`, `%27` dans tous les journaux, les autres requêtes de
+   cette IP ou de sa plage, et les consultations de convocations en série.
+5. Prévenir : responsable sécurité et direction de l'ASIN, bjCSIRT, APDP dans le délai légal, puis les
+   personnes concernées si la direction le décide.
+6. Ensuite : surveiller les inscriptions et consultations anormales (une même IP pour beaucoup de NPI),
+   envisager un code par SMS ou mail à l'inscription, et faire un audit de sécurité avant la prochaine
+   campagne.
