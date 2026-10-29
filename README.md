@@ -14,18 +14,19 @@ Java 21 / Spring Boot 3.5 (Spring Data JPA), PostgreSQL.
 | 6. Rapport d'incident | `RAPPORT_INC-206.md` |
 | Bonus (incident non signalé) | dernière section de `CAUSES_RACINES.md` |
 
-Les fichiers fournis (`journal_production.log` et `base_inscriptions.sql`) ne sont pas dans le dépôt : ils
-contiennent des données personnelles. Les commandes ci-dessous prennent leur chemin en paramètre.
+Le journal fourni est dans le dépôt : `analyser-journal/journal_production.log`. L'export
+`base_inscriptions.sql` n'y est pas : la commande de la question 5 prend son chemin en paramètre.
 
 Prérequis : Java 21 ou plus, Maven 3.9 ou plus, PostgreSQL (`psql`). Docker est facultatif (voir les tests).
 
 ## 2. Analyse du journal
 
 ```bash
-java analyser-journal/AnalyseJournal.java <chemin>/journal_production.log
+java analyser-journal/AnalyseJournal.java analyser-journal/journal_production.log
 ```
 
-Un seul fichier, sans dépendance, lancé directement par `java`. Les heures sont affichées en heure du Bénin.
+Pour un autre journal, remplacer le chemin en argument. Un seul fichier, sans dépendance, lancé directement
+par `java`. Les heures sont affichées en heure du Bénin.
 Le programme sort :
 - les numéros de table attribués plusieurs fois ;
 - les inscriptions en double ;
